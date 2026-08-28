@@ -1,3 +1,28 @@
 {
-  "secrets": []
+  "secrets": [
+    {
+      "key": "PIRATE_WEATHER_API_KEY",
+      "description": "Optional Pirate Weather key, free from pirateweather.net. When it is set, the next hour is read from weather radar instead of a 15 minute forecast model, which is noticeably sharper in the United States and Canada. ClearSkies works fully without it and falls back on its own.",
+      "required": false,
+      "private": true
+    }
+  ],
+  "tests": [
+    {
+      "name": "Nowcast and forecast render",
+      "path": "/?demo=1",
+      "expectSelector": "#nowcast-summary",
+      "expectText": "Next hour"
+    },
+    {
+      "name": "Time Machine looks up a past day",
+      "path": "/?demo=1&view=time-machine&date=1998-06-14",
+      "expectSelector": "#time-machine-day"
+    },
+    {
+      "name": "Saved places screen opens",
+      "path": "/?demo=1&view=places",
+      "expectSelector": "#places-screen"
+    }
+  ]
 }
