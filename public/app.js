@@ -42,6 +42,7 @@
     tmStatus: 'idle',
     tmError: null,
     drawn: false,
+    focusSearch: false,
   };
 
   // ------------------------------------------------------------- storage ---
@@ -150,6 +151,31 @@
   // The kit is centrally hosted, so it can be missing (an offline launch, a
   // host that has not loaded yet). Every use of it goes through here.
   function kit() { return window.unNative || null; }
+
+  // Location inside the app frame.
+  //
+  // Geolocation is gated by Permissions Policy, and a policy is delegated
+  // DOWNWARD by the embedding page: an app in an iframe cannot grant itself
+  // the capability. When the host frame does not pass it on, the browser
+  // rejects getCurrentPosition in a couple of milliseconds with
+  // PERMISSION_DENIED and never shows a prompt, which reads exactly like the
+  // user refusing. So ask the policy first and stop offering a control that
+  // cannot work. Chrome answers this; other browsers do not expose it, and
+  // there the attempt itself is left to decide.
+  var HOST_BLOCKS_LOCATION =
+    'This app cannot read your device location inside Usernode. Search for your place instead.';
+  var HOST_BLOCKS_LOCATION_SHORT =
+    'Usernode does not share your device location with apps.';
+
+  function locationBlockedByHost() {
+    var policy = document.permissionsPolicy || document.featurePolicy;
+    if (!policy || typeof policy.allowsFeature !== 'function') return false;
+    try { return !policy.allowsFeature('geolocation'); } catch (e) { return false; }
+  }
+
+  function canOfferLocation() {
+    return Boolean(navigator.geolocation) && !locationBlockedByHost();
+  }
 
   function toast(message) {
     var k = kit();
@@ -496,10 +522,15 @@
         '<p class="text-sm text-slate-400 leading-relaxed">ClearSkies tells you when rain starts ' +
           'and stops at one exact point on the map, minute by minute. Choose that point to begin.</p>' +
         '<div class="flex flex-col gap-2 w-full pt-1">' +
-          '<button type="button" data-action="locate" class="w-full rounded-xl bg-sky-500 ' +
-            'hover:bg-sky-400 text-slate-950 font-semibold py-2.5 text-sm">Use my location</button>' +
-          '<button type="button" data-action="places" class="w-full rounded-xl border ' +
-            'border-white/10 hover:bg-white/5 text-slate-200 py-2.5 text-sm">Search for a place</button>' +
+          (canOfferLocation()
+            ? '<button type="button" data-action="locate" class="w-full rounded-xl bg-sky-500 ' +
+                'hover:bg-sky-400 text-slate-950 font-semibold py-2.5 text-sm">Use my location</button>' +
+              '<button type="button" data-action="places" class="w-full rounded-xl border ' +
+                'border-white/10 hover:bg-white/5 text-slate-200 py-2.5 text-sm">Search for a place</button>'
+            : '<button type="button" data-action="places" class="w-full rounded-xl bg-sky-500 ' +
+                'hover:bg-sky-400 text-slate-950 font-semibold py-2.5 text-sm">Search for a place</button>' +
+              '<p class="text-xs text-slate-500 leading-relaxed">' +
+                HOST_BLOCKS_LOCATION_SHORT + '</p>') +
         '</div>' +
       '</div>');
   }
@@ -692,8 +723,11 @@
               'class="w-full rounded-xl bg-slate-900/70 border border-white/10 px-3.5 py-2.5 ' +
               'text-sm text-slate-100 placeholder:text-slate-500 outline-none ' +
               'focus:border-sky-400/60">' +
-            '<button type="button" data-action="locate" class="w-full rounded-xl border ' +
-              'border-white/10 hover:bg-white/5 text-slate-200 py-2 text-sm">Use my location</button>' +
+            (canOfferLocation()
+              ? '<button type="button" data-action="locate" class="w-full rounded-xl border ' +
+                'border-white/10 hover:bg-white/5 text-slate-200 py-2 text-sm">Use my location</button>'
+              : '<p class="px-0.5 text-xs text-slate-500 leading-relaxed">' +
+                HOST_BLOCKS_LOCATION_SHORT + '</p>') +
           '</div>' +
           '<div id="search-results" class="empty:hidden border-t border-white/5"></div>') +
         card(sectionLabel('Saved') + '<div id="saved-list" class="pb-1">' + saved + '</div>') +
@@ -872,6 +906,12 @@
       if (search) {
         search.addEventListener('input', onSearchInput);
         if (searchTerm) { search.value = searchTerm; }
+        // Only after a failed locate, never on an ordinary visit to this
+        // screen, so opening Places does not raise the keyboard by itself.
+        if (state.focusSearch) {
+          state.focusSearch = false;
+          try { search.focus({ preventScroll: true }); } catch (e) { search.focus(); }
+        }
       }
       attachReorder();
     }
@@ -977,6 +1017,12 @@
   function useMyLocation() {
     if (!navigator.geolocation) {
       toast('This browser cannot share a location.');
+      fallBackToSearch();
+      return;
+    }
+    if (locationBlockedByHost()) {
+      toast(HOST_BLOCKS_LOCATION);
+      fallBackToSearch();
       return;
     }
     toast('Finding your location.');
@@ -989,13 +1035,36 @@
           lon: Number(pos.coords.longitude.toFixed(4)),
         });
       },
-      function () {
-        // A denied or unavailable location is an ordinary outcome here, not
-        // an error worth logging: the search field is right there.
-        toast('Location is unavailable. Search for a place instead.');
+      function (err) {
+        // Failing to locate is an ordinary outcome, not an error worth
+        // logging. But say which of the three it was: a browser that refuses
+        // on the frame's behalf and a person tapping "block" are the same
+        // error code, and telling someone to check a permission they never
+        // saw is worse than saying nothing.
+        var code = err && err.code;
+        var message;
+        if (code === 1) {
+          message = locationBlockedByHost()
+            ? HOST_BLOCKS_LOCATION
+            : 'Location permission was declined. Allow it in your browser, or search for a place.';
+        } else if (code === 3) {
+          message = 'Finding your location took too long. Try again, or search for a place.';
+        } else {
+          message = 'Your device could not work out where it is. Search for a place instead.';
+        }
+        toast(message);
+        fallBackToSearch();
       },
       { timeout: 10000, maximumAge: 300000 }
     );
+  }
+
+  // Leave someone who cannot be located in front of the search field rather
+  // than on the screen that just failed them.
+  function fallBackToSearch() {
+    state.focusSearch = true;
+    if (state.view === 'places') { afterRender(); return; }
+    go('places');
   }
 
   function selectDate(date) {

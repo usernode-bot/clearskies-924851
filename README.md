@@ -98,6 +98,22 @@ information beyond a public username, so the table is marked
 `staging:private`: staging gets the schema and none of the rows. Nothing else
 is stored. Unit preference lives in the browser, not the database.
 
+## Device location needs a platform change
+
+"Use my location" only works where the page embedding ClearSkies delegates
+the geolocation permission to it. Permissions Policy is granted downward by
+the embedding page, so an app inside an iframe cannot grant itself the
+capability, and the Usernode shell does not currently pass it on. The browser
+then rejects the request in about three milliseconds with `PERMISSION_DENIED`
+and never shows a prompt, which is indistinguishable from someone tapping
+"block".
+
+The app therefore asks `document.permissionsPolicy.allowsFeature('geolocation')`
+first and hides the control when the answer is no, rather than offering a
+button that cannot work. Search is the way in until the shell adds
+`allow="geolocation"` to the app iframe, at which point the button returns on
+its own with no change here.
+
 ## Not built yet
 
 - **Push notifications.** The most-missed Dark Sky feature after the nowcast
