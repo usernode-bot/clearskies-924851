@@ -60,11 +60,45 @@ tables you've marked private), etc.
 
 ## About ClearSkies
 
-_(add a sentence or two of product context here so Claude Code has a
-shared understanding of what this app is for)_
+ClearSkies is a Dark Sky replacement. The product is one sentence:
+"Light rain starting in 12 minutes, stopping in 34 minutes," computed
+for an exact latitude and longitude rather than the nearest city, with a
+minute-by-minute graph of the next hour underneath it. Everything else
+on the screen (the day timeline, the week, Time Machine, alerts) is
+supporting cast. If a change would make the nowcast less accurate or
+less prominent, it is the wrong change.
+
+The second half of the premise is that it cannot be killed, acquired or
+made worse, so the data sources are plural and open (Open-Meteo as the
+backbone, Pirate Weather as an optional radar upgrade, weather.gov for
+alerts) and each degrades to the next rather than taking the app down.
+See README.md for the full picture.
 
 ## App-specific conventions
 
-_(optional — e.g. "all currency values stored as integer cents, not
-floats"; "the `posts` table is append-only"; "avoid adding new
-dependencies"; etc.)_
+- **The nowcast engine (`lib/nowcast.js`) is pure arithmetic and stays
+  that way.** No network, no clock reading beyond what is passed in. It
+  is the one part of the app covered by unit tests (`npm test`), because
+  it is the one part a page load cannot verify. Extend the tests with any
+  change to it.
+- **Temperatures are stored and passed around in Celsius, wind in km/h,
+  precipitation in mm.** Conversion to Fahrenheit, mph and inches happens
+  only at the point of display, in `public/app.js`.
+- **Every upstream call is allowed to fail.** A provider error returns a
+  partial answer or an empty list, never an exception that reaches the
+  user as a broken screen. Alerts in particular must never block or break
+  the forecast.
+- **`?demo=1` serves a fixed synthetic forecast** from `lib/demo.js`
+  through the public `/api/demo/*` routes, so the staging preview, the
+  automated checks and the voters' screenshots do not depend on a
+  third-party API being reachable. Keep it working, keep it free of user
+  data, and keep the demo internally consistent (the hero, the timeline
+  and the week must not contradict each other).
+- **`saved_places` is marked `staging:private`.** It holds the
+  coordinates people watch. Do not add a public table with a foreign key
+  to it.
+- **Tailwind is precompiled**, so every class name must appear as a whole
+  literal. Never assemble one from fragments at runtime.
+- **The native kit and the bridge are progressive enhancement.** Every
+  use of `window.unNative` is guarded, and every control still works when
+  the platform host cannot be reached.
