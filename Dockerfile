@@ -25,6 +25,11 @@ COPY . .
 # After COPY . . so the compiled stylesheet is not overwritten by the
 # source tree (which deliberately does not contain one).
 COPY --from=css /build/public/tailwind.css ./public/tailwind.css
+# Run as the base image's non-root `node` user, named by NUMBER: the platform
+# runs containers with runAsNonRoot, which refuses an image that would run as
+# root and can only verify a numeric UID. The app writes nothing to disk, so
+# the root-owned /app stays readable and nothing else needs to change.
+USER 1000
 EXPOSE 3000
 HEALTHCHECK --interval=30s --timeout=5s --retries=3 \
   CMD wget -qO- http://localhost:3000/health || exit 1
