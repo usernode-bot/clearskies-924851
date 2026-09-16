@@ -12,6 +12,13 @@ const pool = new Pool({ connectionString: process.env.DATABASE_URL });
 
 const IS_STAGING = process.env.USERNODE_ENV === 'staging';
 
+// The platform's address, injected by the platform at deploy. Never written
+// out here: a hardcoded hostname is what broke this app when the platform
+// moved domains. Empty only outside the platform (local `node server.js`),
+// where there is no platform to send anyone to.
+const PLATFORM_ORIGIN = (process.env.USERNODE_PLATFORM_ORIGIN || '').replace(/\/+$/, '');
+const PLATFORM_APP_URL = PLATFORM_ORIGIN ? PLATFORM_ORIGIN + '/app/clearskies-924851/full' : '';
+
 // The platform signs user-identity tokens with an RSA private key it never
 // shares. Containers get only the PUBLIC half, so this app can verify who a
 // user is but cannot mint an identity — and neither can any other app.
@@ -306,17 +313,20 @@ app.get('*', (req, res) => {
     // character test keeps the
     // value attribute-safe for the landing anchor below — anything
     // unusual falls back to the bare link.
-    const deepPath = /^\/[A-Za-z0-9\-._~!$&()*+,;=:@\/%?]*$/.test(req.originalUrl)
+    // `/open-in-usernode` is the in-app sign-in link (public/app.js): it
+    // means "open the app", so it carries no deep path of its own.
+    const deepPath = req.path !== '/open-in-usernode'
+      && /^\/[A-Za-z0-9\-._~!$&()*+,;=:@\/%?]*$/.test(req.originalUrl)
       ? '?path=' + encodeURIComponent(req.originalUrl) : '';
-    if (req.get('sec-fetch-dest') === 'document') {
-      return res.redirect(302, 'https://social-vibecoding.usernodelabs.org/app/clearskies-924851/full' + deepPath);
+    if (PLATFORM_APP_URL && req.get('sec-fetch-dest') === 'document') {
+      return res.redirect(302, PLATFORM_APP_URL + deepPath);
     }
     return res.status(401).send(`<!doctype html><meta charset=utf-8><title>Open in Usernode</title>
 <body style="font-family:system-ui;background:#09090b;color:#e4e4e7;display:flex;align-items:center;justify-content:center;min-height:100vh;margin:0">
   <div style="max-width:24rem;padding:2rem;text-align:center">
     <h1 style="font-size:1.25rem;margin:0 0 0.5rem">Open this app inside Usernode</h1>
     <p style="color:#a1a1aa;font-size:0.9rem;margin:0 0 1.25rem">This page is served via the platform; direct visits aren't authenticated.</p>
-    <a href="https://social-vibecoding.usernodelabs.org/app/clearskies-924851/full${deepPath}" style="display:inline-block;padding:0.5rem 1rem;background:#7c3aed;color:white;border-radius:0.5rem;text-decoration:none;font-size:0.9rem">Open in Usernode</a>
+    <a href="${PLATFORM_APP_URL}${deepPath}" style="display:inline-block;padding:0.5rem 1rem;background:#7c3aed;color:white;border-radius:0.5rem;text-decoration:none;font-size:0.9rem">Open in Usernode</a>
   </div>
 </body>`);
   }

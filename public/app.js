@@ -511,7 +511,12 @@
         '<h2 class="text-lg font-semibold">Open ClearSkies in Usernode</h2>' +
         '<p class="text-sm text-slate-400 leading-relaxed">This page is served through the ' +
           'platform, which signs you in automatically. Opened directly it has no forecast to show.</p>' +
-        '<a href="https://social-vibecoding.usernodelabs.org/app/clearskies-924851/full" ' +
+        // A path on this app, not the platform's hostname. target=_top makes
+        // it a top-level page load, which server.js redirects to wherever the
+        // platform currently lives (USERNODE_PLATFORM_ORIGIN) rather than
+        // loading the platform inside this frame. Not `/`: that is served
+        // statically before the auth check and would just reload this page.
+        '<a href="/open-in-usernode" target="_top" ' +
           'class="rounded-xl bg-sky-500 hover:bg-sky-400 text-slate-950 font-semibold ' +
           'px-5 py-2 text-sm">Open in Usernode</a>' +
       '</div>');
