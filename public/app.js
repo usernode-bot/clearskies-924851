@@ -733,7 +733,8 @@
 
   function searchResultsHtml(results) {
     if (!results.length) {
-      return '<p class="px-4 py-3 text-sm text-slate-500">No matching places.</p>';
+      return '<p class="px-4 py-3 text-sm text-slate-500">No matching places. ' +
+        'Try a nearby larger town, or use your location above.</p>';
     }
     return results.map(function (r) {
       return '<button type="button" data-action="add-place" data-lat="' + r.lat + '" data-lon="' + r.lon +
